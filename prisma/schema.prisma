@@ -13,7 +13,40 @@ enum WorkflowStatus { REQUESTED SCHEDULED IN_PROGRESS IT_COMPLETED AWAITING_VERI
 enum AccountStatus { REQUESTED ACTIVE DISABLED REMOVED UNKNOWN }
 enum ImportStatus { UPLOADED PROCESSING PROCESSED FAILED }
 enum ReconciliationStatus { PASS WARNING FAIL }
-enum AppRole { ADMIN HR FINANCE VIEWER AUDITOR }
+enum AuthProvider { MICROSOFT }
+
+enum PermissionCode {
+  VIEW_DASHBOARD
+  VIEW_PEOPLE
+  EXPORT_PEOPLE
+  CREATE_ONBOARDING
+  CREATE_OFFBOARDING
+  MANAGE_WORKFLOWS
+  VIEW_ACCOUNTS
+  MANAGE_ACCOUNTS
+  VIEW_LICENSES
+  EXPORT_LICENSES
+  MANAGE_LICENSE_PRICES
+  VIEW_IMPORTS
+  UPLOAD_IMPORTS
+  DOWNLOAD_EVIDENCE
+  VIEW_RECONCILIATIONS
+  MANAGE_RECONCILIATIONS
+  EXPORT_RECONCILIATIONS
+  VIEW_COMPENSATION
+  EDIT_COMPENSATION
+  EXPORT_COMPENSATION
+  VIEW_INVOICES
+  EDIT_INVOICES
+  EXPORT_INVOICES
+  VIEW_AUDIT_LOG
+  EXPORT_AUDIT_LOG
+  MANAGE_USERS
+  MANAGE_ROLES
+  VIEW_BUDGET
+  EDIT_BUDGET
+  EXPORT_BUDGET
+}
 
 model Organization {
   id         String     @id @default(cuid())
@@ -36,15 +69,63 @@ model Property {
 }
 
 model PlatformUser {
-  id        String    @id @default(cuid())
-  authId    String    @unique
-  email     String    @unique
-  name      String
-  role      AppRole
-  active    Boolean   @default(true)
-  auditLogs AuditLog[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                String           @id @default(cuid())
+  email             String           @unique
+  name              String
+  authProvider      AuthProvider     @default(MICROSOFT)
+  authSubject       String?          @unique
+  active            Boolean          @default(true)
+  lastLoginAt       DateTime?
+  lastLoginEmail    String?
+  roles             UserRole[]
+  directPermissions UserPermission[]
+  auditLogs         AuditLog[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  users       UserRole[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   PlatformUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        PermissionCode   @unique
+  description String?
+  roles       RolePermission[]
+  users       UserPermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  granted      Boolean      @default(true)
+  user         PlatformUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([userId, permissionId])
 }
 
 model Department {
@@ -296,6 +377,7 @@ model Invoice {
 model AuditLog {
   id         String        @id @default(cuid())
   userId     String?
+  actorEmail String?
   action     String
   entityType String
   entityId   String?
@@ -305,4 +387,5 @@ model AuditLog {
   user       PlatformUser? @relation(fields: [userId], references: [id])
   createdAt  DateTime      @default(now())
   @@index([entityType, entityId, createdAt])
+  @@index([actorEmail, createdAt])
 }
