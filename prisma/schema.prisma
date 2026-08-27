@@ -48,11 +48,11 @@ model PlatformUser {
 }
 
 model Department {
-  id         String     @id @default(cuid())
-  propertyId String
-  name       String
-  costCenter String?
-  property   Property   @relation(fields: [propertyId], references: [id])
+  id          String       @id @default(cuid())
+  propertyId  String
+  name        String
+  costCenter  String?
+  property    Property     @relation(fields: [propertyId], references: [id])
   employments Employment[]
   @@unique([propertyId, name])
 }
@@ -64,20 +64,21 @@ model Position {
 }
 
 model Person {
-  id             String          @id @default(cuid())
-  propertyId     String
-  firstName      String
-  lastName       String
-  personalEmail  String?
-  personalPhone  String?
-  property       Property        @relation(fields: [propertyId], references: [id])
-  employments    Employment[]
-  accounts       SystemAccount[]
-  workflows      AccessWorkflow[]
-  compensation   Compensation[]
+  id                 String                  @id @default(cuid())
+  propertyId         String
+  firstName          String
+  lastName           String
+  personalEmail      String?
+  personalPhone      String?
+  property           Property                @relation(fields: [propertyId], references: [id])
+  employments        Employment[]
+  accounts           SystemAccount[]
+  workflows          AccessWorkflow[]
+  compensation       Compensation[]
   licenseAssignments LicenseAssignment[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  mailingLists       MailingListMembership[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
   @@index([propertyId, lastName, firstName])
 }
 
@@ -105,41 +106,41 @@ model ExternalSystem {
 }
 
 model SystemAccount {
-  id          String        @id @default(cuid())
+  id          String         @id @default(cuid())
   personId    String
   systemId    String
   username    String
-  status      AccountStatus @default(UNKNOWN)
+  status      AccountStatus  @default(UNKNOWN)
   requestedAt DateTime?
   activatedAt DateTime?
   disabledAt  DateTime?
   verifiedAt  DateTime?
   lastLoginAt DateTime?
-  person      Person        @relation(fields: [personId], references: [id])
+  person      Person         @relation(fields: [personId], references: [id])
   system      ExternalSystem @relation(fields: [systemId], references: [id])
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   @@unique([systemId, username])
   @@index([personId, systemId])
 }
 
 model AccessWorkflow {
-  id                  String         @id @default(cuid())
-  personId            String
-  type                WorkflowType
-  status              WorkflowStatus @default(REQUESTED)
-  requestedAt         DateTime       @default(now())
-  effectiveDate       DateTime
-  itStartedAt         DateTime?
-  itCompletedAt       DateTime?
-  sourceVerifiedAt    DateTime?
-  closedAt            DateTime?
-  requestedByUserId   String?
-  notes               String?
-  person              Person         @relation(fields: [personId], references: [id])
-  tasks               WorkflowTask[]
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  personId          String
+  type              WorkflowType
+  status            WorkflowStatus @default(REQUESTED)
+  requestedAt       DateTime       @default(now())
+  effectiveDate     DateTime
+  itStartedAt       DateTime?
+  itCompletedAt     DateTime?
+  sourceVerifiedAt  DateTime?
+  closedAt          DateTime?
+  requestedByUserId String?
+  notes             String?
+  person            Person         @relation(fields: [personId], references: [id])
+  tasks             WorkflowTask[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   @@index([status, effectiveDate])
 }
 
@@ -169,12 +170,13 @@ model MailingListMembership {
   addedAt   DateTime    @default(now())
   removedAt DateTime?
   list      MailingList @relation(fields: [listId], references: [id])
+  person    Person      @relation(fields: [personId], references: [id])
   @@index([personId])
 }
 
 model LicenseType {
-  id          String              @id @default(cuid())
-  code        String              @unique
+  id          String                @id @default(cuid())
+  code        String                @unique
   name        String
   assignments LicenseAssignment[]
   prices      LicensePriceHistory[]
@@ -204,32 +206,32 @@ model LicensePriceHistory {
 }
 
 model DataSource {
-  id              String        @id @default(cuid())
-  propertyId      String
-  code            String
-  name            String
-  category        String
-  frequency       String?
-  property        Property      @relation(fields: [propertyId], references: [id])
-  imports         ImportBatch[]
+  id         String        @id @default(cuid())
+  propertyId String
+  code       String
+  name       String
+  category   String
+  frequency  String?
+  property   Property      @relation(fields: [propertyId], references: [id])
+  imports    ImportBatch[]
   @@unique([propertyId, code])
 }
 
 model ImportBatch {
-  id             String        @id @default(cuid())
-  dataSourceId   String
-  period         String?
-  originalName   String
-  storagePath    String
-  sha256         String
-  recordCount    Int           @default(0)
-  errorCount     Int           @default(0)
-  status         ImportStatus  @default(UPLOADED)
-  uploadedBy     String?
-  uploadedAt     DateTime      @default(now())
-  processedAt    DateTime?
-  dataSource     DataSource    @relation(fields: [dataSourceId], references: [id])
-  records        ImportedRecord[]
+  id                 String              @id @default(cuid())
+  dataSourceId       String
+  period             String?
+  originalName       String
+  storagePath        String
+  sha256             String
+  recordCount        Int                 @default(0)
+  errorCount         Int                 @default(0)
+  status             ImportStatus        @default(UPLOADED)
+  uploadedBy         String?
+  uploadedAt         DateTime            @default(now())
+  processedAt        DateTime?
+  dataSource         DataSource          @relation(fields: [dataSourceId], references: [id])
+  records            ImportedRecord[]
   reconciliationRuns ReconciliationRun[]
   @@index([dataSourceId, uploadedAt])
 }
@@ -244,15 +246,15 @@ model ImportedRecord {
 }
 
 model ReconciliationRun {
-  id            String               @id @default(cuid())
+  id            String                     @id @default(cuid())
   importBatchId String
   type          String
   status        ReconciliationStatus
   expectedCount Int?
   reportedCount Int?
   matchedCount  Int?
-  runAt         DateTime             @default(now())
-  importBatch   ImportBatch          @relation(fields: [importBatchId], references: [id])
+  runAt         DateTime                   @default(now())
+  importBatch   ImportBatch                @relation(fields: [importBatchId], references: [id])
   differences   ReconciliationDifference[]
 }
 
@@ -281,26 +283,26 @@ model Compensation {
 }
 
 model Invoice {
-  id           String   @id @default(cuid())
-  provider     String
-  period       String
-  amount       Decimal  @db.Decimal(14,2)
-  currency     String   @default("EUR")
-  storagePath  String?
-  receivedAt   DateTime
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  provider    String
+  period      String
+  amount      Decimal  @db.Decimal(14,2)
+  currency    String   @default("EUR")
+  storagePath String?
+  receivedAt  DateTime
+  createdAt   DateTime @default(now())
 }
 
 model AuditLog {
-  id          String        @id @default(cuid())
-  userId      String?
-  action      String
-  entityType  String
-  entityId    String?
-  before      Json?
-  after       Json?
-  metadata    Json?
-  user        PlatformUser? @relation(fields: [userId], references: [id])
-  createdAt   DateTime      @default(now())
+  id         String        @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  metadata   Json?
+  user       PlatformUser? @relation(fields: [userId], references: [id])
+  createdAt  DateTime      @default(now())
   @@index([entityType, entityId, createdAt])
 }
