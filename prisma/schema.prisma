@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmploymentStatus { SCHEDULED ACTIVE INACTIVE TERMINATED }
+enum WorkflowType { ONBOARDING OFFBOARDING CHANGE }
+enum WorkflowStatus { REQUESTED SCHEDULED IN_PROGRESS IT_COMPLETED AWAITING_VERIFICATION VERIFIED CLOSED EXCEPTION }
+enum AccountStatus { REQUESTED ACTIVE DISABLED REMOVED UNKNOWN }
+enum ImportStatus { UPLOADED PROCESSING PROCESSED FAILED }
+enum ReconciliationStatus { PASS WARNING FAIL }
+enum AppRole { ADMIN HR FINANCE VIEWER AUDITOR }
+
+model Organization {
+  id         String     @id @default(cuid())
+  name       String
+  properties Property[]
+  createdAt  DateTime   @default(now())
+}
+
+model Property {
+  id             String          @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  people         Person[]
+  departments    Department[]
+  dataSources    DataSource[]
+  createdAt      DateTime        @default(now())
+  @@unique([organizationId, code])
+}
+
+model PlatformUser {
+  id        String    @id @default(cuid())
+  authId    String    @unique
+  email     String    @unique
+  name      String
+  role      AppRole
+  active    Boolean   @default(true)
+  auditLogs AuditLog[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Department {
+  id         String     @id @default(cuid())
+  propertyId String
+  name       String
+  costCenter String?
+  property   Property   @relation(fields: [propertyId], references: [id])
+  employments Employment[]
+  @@unique([propertyId, name])
+}
+
+model Position {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  employments Employment[]
+}
+
+model Person {
+  id             String          @id @default(cuid())
+  propertyId     String
+  firstName      String
+  lastName       String
+  personalEmail  String?
+  personalPhone  String?
+  property       Property        @relation(fields: [propertyId], references: [id])
+  employments    Employment[]
+  accounts       SystemAccount[]
+  workflows      AccessWorkflow[]
+  compensation   Compensation[]
+  licenseAssignments LicenseAssignment[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  @@index([propertyId, lastName, firstName])
+}
+
+model Employment {
+  id           String           @id @default(cuid())
+  personId     String
+  departmentId String
+  positionId   String
+  status       EmploymentStatus
+  startDate    DateTime
+  endDate      DateTime?
+  person       Person           @relation(fields: [personId], references: [id])
+  department   Department       @relation(fields: [departmentId], references: [id])
+  position     Position         @relation(fields: [positionId], references: [id])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  @@index([status, startDate])
+}
+
+model ExternalSystem {
+  id       String          @id @default(cuid())
+  code     String          @unique
+  name     String
+  accounts SystemAccount[]
+}
+
+model SystemAccount {
+  id          String        @id @default(cuid())
+  personId    String
+  systemId    String
+  username    String
+  status      AccountStatus @default(UNKNOWN)
+  requestedAt DateTime?
+  activatedAt DateTime?
+  disabledAt  DateTime?
+  verifiedAt  DateTime?
+  lastLoginAt DateTime?
+  person      Person        @relation(fields: [personId], references: [id])
+  system      ExternalSystem @relation(fields: [systemId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  @@unique([systemId, username])
+  @@index([personId, systemId])
+}
+
+model AccessWorkflow {
+  id                  String         @id @default(cuid())
+  personId            String
+  type                WorkflowType
+  status              WorkflowStatus @default(REQUESTED)
+  requestedAt         DateTime       @default(now())
+  effectiveDate       DateTime
+  itStartedAt         DateTime?
+  itCompletedAt       DateTime?
+  sourceVerifiedAt    DateTime?
+  closedAt            DateTime?
+  requestedByUserId   String?
+  notes               String?
+  person              Person         @relation(fields: [personId], references: [id])
+  tasks               WorkflowTask[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  @@index([status, effectiveDate])
+}
+
+model WorkflowTask {
+  id          String         @id @default(cuid())
+  workflowId  String
+  title       String
+  systemCode  String?
+  completed   Boolean        @default(false)
+  completedAt DateTime?
+  completedBy String?
+  workflow    AccessWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+}
+
+model MailingList {
+  id          String                  @id @default(cuid())
+  name        String                  @unique
+  memberships MailingListMembership[]
+}
+
+model MailingListMembership {
+  id        String      @id @default(cuid())
+  listId    String
+  personId  String
+  active    Boolean     @default(true)
+  addedAt   DateTime    @default(now())
+  removedAt DateTime?
+  list      MailingList @relation(fields: [listId], references: [id])
+  @@index([personId])
+}
+
+model LicenseType {
+  id          String              @id @default(cuid())
+  code        String              @unique
+  name        String
+  assignments LicenseAssignment[]
+  prices      LicensePriceHistory[]
+}
+
+model LicenseAssignment {
+  id            String      @id @default(cuid())
+  personId      String
+  licenseTypeId String
+  active        Boolean     @default(true)
+  assignedAt    DateTime
+  removedAt     DateTime?
+  person        Person      @relation(fields: [personId], references: [id])
+  licenseType   LicenseType @relation(fields: [licenseTypeId], references: [id])
+  @@index([active, licenseTypeId])
+}
+
+model LicensePriceHistory {
+  id            String      @id @default(cuid())
+  licenseTypeId String
+  monthlyPrice  Decimal     @db.Decimal(12,2)
+  currency      String      @default("EUR")
+  validFrom     DateTime
+  validTo       DateTime?
+  licenseType   LicenseType @relation(fields: [licenseTypeId], references: [id])
+  @@index([licenseTypeId, validFrom])
+}
+
+model DataSource {
+  id              String        @id @default(cuid())
+  propertyId      String
+  code            String
+  name            String
+  category        String
+  frequency       String?
+  property        Property      @relation(fields: [propertyId], references: [id])
+  imports         ImportBatch[]
+  @@unique([propertyId, code])
+}
+
+model ImportBatch {
+  id             String        @id @default(cuid())
+  dataSourceId   String
+  period         String?
+  originalName   String
+  storagePath    String
+  sha256         String
+  recordCount    Int           @default(0)
+  errorCount     Int           @default(0)
+  status         ImportStatus  @default(UPLOADED)
+  uploadedBy     String?
+  uploadedAt     DateTime      @default(now())
+  processedAt    DateTime?
+  dataSource     DataSource    @relation(fields: [dataSourceId], references: [id])
+  records        ImportedRecord[]
+  reconciliationRuns ReconciliationRun[]
+  @@index([dataSourceId, uploadedAt])
+}
+
+model ImportedRecord {
+  id            String      @id @default(cuid())
+  importBatchId String
+  externalKey   String?
+  payload       Json
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  @@index([importBatchId, externalKey])
+}
+
+model ReconciliationRun {
+  id            String               @id @default(cuid())
+  importBatchId String
+  type          String
+  status        ReconciliationStatus
+  expectedCount Int?
+  reportedCount Int?
+  matchedCount  Int?
+  runAt         DateTime             @default(now())
+  importBatch   ImportBatch          @relation(fields: [importBatchId], references: [id])
+  differences   ReconciliationDifference[]
+}
+
+model ReconciliationDifference {
+  id               String            @id @default(cuid())
+  reconciliationId String
+  externalKey      String?
+  differenceType   String
+  expectedValue    Json?
+  reportedValue    Json?
+  resolved         Boolean           @default(false)
+  resolvedAt       DateTime?
+  reconciliation   ReconciliationRun @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+}
+
+model Compensation {
+  id            String   @id @default(cuid())
+  personId      String
+  monthlyAmount Decimal  @db.Decimal(12,2)
+  currency      String   @default("EUR")
+  validFrom     DateTime
+  validTo       DateTime?
+  person        Person   @relation(fields: [personId], references: [id])
+  createdAt     DateTime @default(now())
+  @@index([personId, validFrom])
+}
+
+model Invoice {
+  id           String   @id @default(cuid())
+  provider     String
+  period       String
+  amount       Decimal  @db.Decimal(14,2)
+  currency     String   @default("EUR")
+  storagePath  String?
+  receivedAt   DateTime
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id          String        @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  before      Json?
+  after       Json?
+  metadata    Json?
+  user        PlatformUser? @relation(fields: [userId], references: [id])
+  createdAt   DateTime      @default(now())
+  @@index([entityType, entityId, createdAt])
+}
